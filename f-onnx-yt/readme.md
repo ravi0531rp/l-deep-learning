@@ -41,16 +41,28 @@ joblib.dump(clf, 'models/random_forest.pkl')
 ```
 
 ```py
+# Import necessary libraries for converting scikit-learn model to ONNX format
 from skl2onnx import convert_sklearn
 from skl2onnx.common.data_types import FloatTensorType
-import joblib
 
+# Load the pre-trained scikit-learn Random Forest model from a pickle file
 cls = joblib.load('./models/random_forest.pkl')
-initial_type =[('float_input', FloatTensorType([None, 4]))]
+
+# Define the input type expected by the model
+# - Name: 'float_input'
+# - Data type: FloatTensorType
+# - Shape: [None, 4] (None indicates variable batch size, 4 features)
+initial_type = [('float_input', FloatTensorType([None, 4]))]
+
+# Convert the scikit-learn model to ONNX format
 onnx_model = convert_sklearn(cls, initial_types=initial_type)
 
-with open('./models/model.onnx' , 'wb') as output:
+# Open the output file in binary write mode
+with open('./models/model.onnx', 'wb') as output:
+
+    # Write the serialized ONNX model to the file
     output.write(onnx_model.SerializeToString())
+
 ```
 
 ```py
@@ -66,3 +78,47 @@ op = session.get_outputs()[0].name
 preds = session.run([op], {ip : data.astype(np.float32)})[0]
 preds
 ```
+
+```py
+import concurrent.futures
+
+def run_inference_async(data, session, ip, op, num_threads=4):
+    """
+    Runs inference asynchronously using a ThreadPoolExecutor.
+
+    Args:
+        data (np.ndarray): Input data for inference.
+        session (rt.InferenceSession): ONNX Runtime session.
+        ip (str): Input name.
+        op (str): Output name.
+        num_threads (int, optional): Number of threads to use. Defaults to 4.
+
+    Returns:
+        np.ndarray: Prediction results.
+    """
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        future = executor.submit(lambda: session.run([op], {ip: data.astype(np.float32)})[0])
+        return future.result()
+    
+
+num_threads = 8  # You can set the desired number of threads here
+
+preds = run_inference_async(data, session, ip, op, num_threads=num_threads)
+print(preds)
+
+
+```
+
+### ONNX Runtime
+* High performance inference engine for ONNX
+* Full ONNX spec support
+```sh
+[TF ; Torch ; Caffe2 ; Chainer ; MXNet ; CNTK]
+                      |
+                    [ONNX]
+                      |
+                [ONNX Runtime]
+                      |
+            [CPU ; GPU ; FPGA ; VPU]
+  ```
