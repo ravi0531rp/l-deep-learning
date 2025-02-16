@@ -1,5 +1,6 @@
 *.pkl
 *.onnx
+*.pth
 *.pt
 *.h5
 *.log
